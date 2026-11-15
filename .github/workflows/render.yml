@@ -1,0 +1,78 @@
+name: render-short
+
+# Manual trigger only, so no minutes are spent by accident.
+on:
+  workflow_dispatch:
+    inputs:
+      comp:
+        description: "Remotion composition id"
+        default: "MonoShort"
+        required: true
+
+jobs:
+  chunk:
+    name: chunk ${{ matrix.from }}-${{ matrix.to }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        include:
+          - { from: 0,    to: 148 }
+          - { from: 149,  to: 297 }
+          - { from: 298,  to: 446 }
+          - { from: 447,  to: 595 }
+          - { from: 596,  to: 744 }
+          - { from: 745,  to: 893 }
+          - { from: 894,  to: 1042 }
+          - { from: 1043, to: 1191 }
+          - { from: 1192, to: 1340 }
+          - { from: 1341, to: 1489 }
+          - { from: 1490, to: 1638 }
+          - { from: 1639, to: 1781 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Render frames ${{ matrix.from }}-${{ matrix.to }}
+        env:
+          COMP: ${{ inputs.comp }}
+          CHROME: /usr/bin/google-chrome
+          REMOTION_TMP: ${{ runner.temp }}/remotion
+        run: node scripts/render-chunk.mjs chunk_${{ matrix.from }}.mp4 ${{ matrix.from }} ${{ matrix.to }} 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chunk-${{ matrix.from }}
+          path: chunk_${{ matrix.from }}.mp4
+          retention-days: 2
+
+  join:
+    name: join and mux audio
+    needs: chunk
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: chunk-*
+          path: chunks
+          merge-multiple: true
+      - name: Concat video and add audio
+        run: |
+          cd chunks
+          ls chunk_*.mp4 | sort -t_ -k2 -n | sed "s/.*/file '&'/" > list.txt
+          ffmpeg -y -f concat -safe 0 -i list.txt -c copy video.mp4
+          ffmpeg -y -i video.mp4 -i ../assets/mix.wav -map 0:v -map 1:a \
+            -c:v copy -c:a aac -b:a 192k -shortest -movflags +faststart final.mp4
+          ls -la final.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: final-short
+          path: chunks/final.mp4
+          retention-days: 14
