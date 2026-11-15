@@ -44,12 +44,12 @@ jobs:
           COMP: ${{ inputs.comp }}
           CHROME: /usr/bin/google-chrome
           REMOTION_TMP: ${{ runner.temp }}/remotion
-        run: node scripts/render-chunk.mjs chunk_${{ matrix.from }}.mp4 ${{ matrix.from }} ${{ matrix.to }} 2
+        run: node scripts/render-chunk.mjs chunk_${{ matrix.from }}.mp4 ${{ matrix.from }} ${{ matrix.to }} 4
       - uses: actions/upload-artifact@v4
         with:
           name: chunk-${{ matrix.from }}
           path: chunk_${{ matrix.from }}.mp4
-          retention-days: 2
+          retention-days: 4
 
   join:
     name: join and mux audio
